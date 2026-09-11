@@ -123,6 +123,14 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
 .brand-sub{font-family:var(--font-body);font-size:.54rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--lime-400);}
 .brand-footer{color:#fff;}
 
+.brand-logo{
+  height:64px;width:64px;flex-shrink:0;object-fit:contain;
+  filter:drop-shadow(0 4px 14px rgba(0,0,0,.45));
+  transition:height .3s var(--ease),width .3s var(--ease);
+}
+.site-header.is-scrolled .brand-logo{height:50px;width:50px;}
+.brand-logo-footer{height:88px;width:88px;}
+
 .main-nav ul{display:flex;gap:clamp(12px,1.8vw,24px);}
 .nav-link{
   color:rgba(255,255,255,.86);font-size:.88rem;font-weight:600;

@@ -32,7 +32,8 @@
   var SITE_VIDEOS = [
     { src: "media/Strength Sessions.mp4", title: "Strength Sessions", description: "A look inside a structured strength-training session." },
     { src: "media/Mobility & Stretching.mp4", title: "Mobility & Stretching", description: "Follow-along mobility and stretching work." },
-    { src: "media/Technique Breakdowns.mp4", title: "Technique Breakdowns", description: "Form and technique, broken down step by step." }
+    { src: "media/Technique Breakdowns.mp4", title: "Technique Breakdowns", description: "Form and technique, broken down step by step." },
+    { src: "media/vid4.mp4", title: "Session Highlights", description: "Real training in motion — a look at a full session, start to finish." }
   ];
 
   /* Escapes text for safe insertion into innerHTML (attributes & text nodes). */
