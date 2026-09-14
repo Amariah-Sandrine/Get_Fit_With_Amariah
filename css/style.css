@@ -503,7 +503,7 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
   text-transform:none;font-family:var(--font-body);
 }
 .form-banner-warning{
-  background:rgba(255,180,60,.12);border:1px solid rgba(255,180,60,.4);color:#ffcf80;
+  background:rgba(255,80,80,.12);border:1px solid rgba(255,80,80,.4);color:#ff5c5c;
 }
 .field-optional{font-weight:400;text-transform:none;letter-spacing:0;color:rgba(255,255,255,.45);font-size:.78rem;}
 
