@@ -331,7 +331,7 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
 }
 .gallery-item figcaption h3{color:#fff;font-size:.98rem;margin-bottom:4px;}
 .gallery-item figcaption p{color:rgba(255,255,255,.82);font-size:.82rem;margin:0;}
-.gallery-item figcaption p.caption-black{color:#000;}
+.gallery-item figcaption .caption-black{color:#000;}
 .gallery-item:hover figcaption{transform:translateY(0);}
 
 @media (max-width:860px){
