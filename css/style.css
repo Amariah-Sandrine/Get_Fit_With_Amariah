@@ -90,6 +90,8 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
 .btn:hover{transform:translateY(-2px);}
 .btn-sm{padding:10px 20px;font-size:.8rem;}
 .btn-block{width:100%;justify-content:center;}
+.btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none;}
+.btn[disabled]:hover{transform:none;}
 
 .btn-accent{background:linear-gradient(135deg,var(--lime-400),var(--lime-600));color:var(--ink-950);box-shadow:0 10px 24px rgba(130,173,22,.35);}
 .btn-accent:hover{box-shadow:0 16px 34px rgba(130,173,22,.45);}
@@ -495,6 +497,13 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
 .review-form{
   background:var(--ink-900);border:1px solid var(--line-dark);
   max-width:640px;margin:0 0 40px;
+}
+.form-banner{
+  margin:0 0 20px;padding:14px 16px;border-radius:10px;font-size:.9rem;line-height:1.5;
+  text-transform:none;font-family:var(--font-body);
+}
+.form-banner-warning{
+  background:rgba(255,180,60,.12);border:1px solid rgba(255,180,60,.4);color:#ffcf80;
 }
 .field-optional{font-weight:400;text-transform:none;letter-spacing:0;color:rgba(255,255,255,.45);font-size:.78rem;}
 

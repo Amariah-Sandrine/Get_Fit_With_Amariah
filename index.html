@@ -413,6 +413,9 @@
       <p class="lead reveal">Trained with Amariah? Share your experience — it helps others take the first step.</p>
 
       <form class="booking-form review-form reveal" id="review-form" novalidate>
+        <p class="form-banner form-banner-warning" role="status">
+          &#9888; Reviews are temporarily unavailable while we upgrade this feature. Please check back soon!
+        </p>
         <div class="form-row">
           <div class="field">
             <label for="rv-name">Full Name *</label>
@@ -429,7 +432,7 @@
           <textarea id="rv-message" name="rv-message" rows="4" required placeholder="Tell others about your experience training with Amariah…" aria-describedby="rv-err-message"></textarea>
           <span class="field-error" id="rv-err-message" role="alert"></span>
         </div>
-        <button type="submit" class="btn btn-accent btn-block">Post Review</button>
+        <button type="submit" class="btn btn-accent btn-block" disabled title="Reviews are temporarily unavailable.">Post Review</button>
       </form>
 
       <div class="reviews-controls reveal" id="reviews-controls" hidden>
