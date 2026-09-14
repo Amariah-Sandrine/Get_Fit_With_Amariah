@@ -441,7 +441,6 @@
 
   /* ---------- Reviews ---------- */
   var REVIEWS_KEY = "gfwa_reviews";
-  var reviewSort = "latest";
 
   function loadReviews() {
     try { return JSON.parse(localStorage.getItem(REVIEWS_KEY)) || []; }
@@ -472,13 +471,7 @@
     if (!reviewsList) return;
 
     var reviews = loadReviews();
-    var sorted = reviews.slice();
-
-    if (reviewSort === "top") {
-      sorted.sort(function (a, b) { return (b.helpful || 0) - (a.helpful || 0); });
-    } else {
-      sorted.sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
-    }
+    var sorted = reviews.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
 
     if (reviewsControls) reviewsControls.hidden = reviews.length === 0;
     if (reviewsCount) reviewsCount.textContent = reviews.length + (reviews.length === 1 ? " review" : " reviews");
@@ -572,21 +565,11 @@
       });
       saveReviews(reviews);
       reviewForm.reset();
-      reviewSort = "latest";
-      qsa(".sort-btn").forEach(function (b) { b.classList.toggle("is-active", b.getAttribute("data-sort") === "latest"); });
       renderReviews();
       var list = qs("#reviews-list");
       if (list) list.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
   }
-
-  qsa(".sort-btn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      reviewSort = btn.getAttribute("data-sort");
-      qsa(".sort-btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
-      renderReviews();
-    });
-  });
 
   renderReviews();
 

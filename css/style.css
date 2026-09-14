@@ -500,15 +500,6 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
   margin-bottom:28px;
 }
 .reviews-count{font-size:.88rem;color:rgba(255,255,255,.65);font-weight:600;}
-.reviews-sort{display:flex;gap:8px;}
-.sort-btn{
-  padding:8px 18px;border-radius:999px;border:1px solid var(--line-dark);
-  background:transparent;color:rgba(255,255,255,.65);font-size:.82rem;font-weight:600;
-  text-transform:uppercase;letter-spacing:.03em;cursor:pointer;font-family:var(--font-head);
-  transition:background .25s,color .25s,border-color .25s;
-}
-.sort-btn.is-active,.sort-btn:hover{background:var(--lime-400);color:var(--ink-950);border-color:var(--lime-400);}
-
 .reviews-list{display:flex;flex-direction:column;gap:20px;}
 .review-card{
   background:rgba(255,255,255,.04);border:1px solid var(--line-dark);border-radius:var(--radius-md);
@@ -524,7 +515,7 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
 .review-stars{display:flex;gap:3px;}
 .review-stars .icon{width:16px;height:16px;fill:var(--lime-400);stroke:var(--lime-500);}
 .review-stars .icon.empty{fill:none;stroke:rgba(255,255,255,.2);}
-.review-body{color:rgba(255,255,255,.78);font-size:.96rem;line-height:1.7;margin:0;}
+.review-card .review-body{color:rgba(255,255,255,.78);font-size:.96rem;line-height:1.7;margin:0;}
 .review-helpful{margin-top:14px;}
 .helpful-btn{
   display:inline-flex;align-items:center;gap:5px;
