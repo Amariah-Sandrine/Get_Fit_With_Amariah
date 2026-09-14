@@ -492,7 +492,10 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
 .modal-close:hover{background:rgba(10,11,12,.9);transform:rotate(90deg);}
 
 /* ============ REVIEWS ============ */
-.review-form{margin-bottom:40px;}
+.review-form{
+  background:var(--ink-900);border:1px solid var(--line-dark);
+  max-width:640px;margin:0 0 40px;
+}
 .field-optional{font-weight:400;text-transform:none;letter-spacing:0;color:rgba(255,255,255,.45);font-size:.78rem;}
 
 .reviews-controls{
