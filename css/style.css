@@ -496,15 +496,25 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
   background:var(--cream-50);border:1px solid var(--line);border-radius:var(--radius-lg);
   padding:clamp(24px,4vw,40px);margin-bottom:40px;
 }
-.review-field label{color:var(--ink);}
-.review-field input,.review-field textarea{
-  background:#fff;color:var(--ink);border:1px solid var(--line);
+.review-form .field label{
+  display:block;font-size:.82rem;font-weight:600;margin-bottom:7px;
+  color:var(--ink);text-transform:uppercase;letter-spacing:.02em;
 }
-.review-field input::placeholder,.review-field textarea::placeholder{color:var(--ink-faint);}
-.review-field input:focus,.review-field textarea:focus{
+.review-form .field input,
+.review-form .field textarea{
+  width:100%;padding:12px 14px;border-radius:10px;
+  background:#fff;color:var(--ink);border:1px solid var(--line);
+  font:inherit;font-size:.94rem;transition:border-color .3s,background .3s;
+}
+.review-form .field input::placeholder,
+.review-form .field textarea::placeholder{color:var(--ink-faint);}
+.review-form .field input:focus,
+.review-form .field textarea:focus{
   outline:none;border-color:var(--lime-600);background:#fff;
 }
-.review-field.has-error input,.review-field.has-error textarea{border-color:#e53e3e;}
+.review-form .field.has-error input,
+.review-form .field.has-error textarea{border-color:#e53e3e;background:rgba(229,62,62,.05);}
+.review-form .field-error{color:#c53030;}
 .field-optional{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-faint);font-size:.78rem;}
 
 .reviews-controls{
