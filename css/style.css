@@ -491,6 +491,70 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
 }
 .modal-close:hover{background:rgba(10,11,12,.9);transform:rotate(90deg);}
 
+/* ============ REVIEWS ============ */
+.review-form{
+  background:var(--cream-50);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:clamp(24px,4vw,40px);margin-bottom:40px;
+}
+.review-field label{color:var(--ink);}
+.review-field input,.review-field textarea{
+  background:#fff;color:var(--ink);border:1px solid var(--line);
+}
+.review-field input::placeholder,.review-field textarea::placeholder{color:var(--ink-faint);}
+.review-field input:focus,.review-field textarea:focus{
+  outline:none;border-color:var(--lime-600);background:#fff;
+}
+.review-field.has-error input,.review-field.has-error textarea{border-color:#e53e3e;}
+.field-optional{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-faint);font-size:.78rem;}
+
+.reviews-controls{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+  margin-bottom:28px;
+}
+.reviews-count{font-size:.88rem;color:var(--ink-soft);font-weight:600;}
+.reviews-sort{display:flex;gap:8px;}
+.sort-btn{
+  padding:8px 18px;border-radius:999px;border:1px solid var(--line);
+  background:transparent;color:var(--ink-soft);font-size:.82rem;font-weight:600;
+  text-transform:uppercase;letter-spacing:.03em;cursor:pointer;font-family:var(--font-head);
+  transition:background .25s,color .25s,border-color .25s;
+}
+.sort-btn.is-active,.sort-btn:hover{background:var(--ink-950);color:#fff;border-color:var(--ink-950);}
+
+.reviews-list{display:flex;flex-direction:column;gap:20px;}
+.review-card{
+  background:var(--cream-50);border:1px solid var(--line);border-radius:var(--radius-md);
+  padding:24px 26px;transition:box-shadow .3s var(--ease);
+}
+.review-card:hover{box-shadow:var(--shadow-sm);}
+.review-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+.review-author{font-family:var(--font-head);font-weight:600;font-size:1rem;color:var(--ink-950);text-transform:uppercase;letter-spacing:.02em;}
+.review-author a{color:var(--lime-600);text-decoration:underline;text-underline-offset:3px;}
+.review-author a:hover{color:var(--lime-500);}
+.review-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.review-date{font-size:.78rem;color:var(--ink-faint);}
+.review-stars{display:flex;gap:3px;}
+.review-stars .icon{width:16px;height:16px;color:var(--lime-600);fill:var(--lime-400);stroke:var(--lime-600);}
+.review-stars .icon.empty{fill:none;color:var(--line);stroke:var(--line);}
+.review-body{color:var(--ink-soft);font-size:.96rem;line-height:1.7;margin:0;}
+.review-helpful{
+  margin-top:14px;display:flex;align-items:center;gap:8px;
+  font-size:.8rem;color:var(--ink-faint);
+}
+.helpful-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  background:none;border:1px solid var(--line);border-radius:999px;
+  padding:5px 12px;font-size:.78rem;font-weight:600;color:var(--ink-soft);
+  cursor:pointer;font-family:var(--font-head);text-transform:uppercase;letter-spacing:.02em;
+  transition:border-color .25s,color .25s,background .25s;
+}
+.helpful-btn:hover,.helpful-btn.is-voted{background:var(--lime-400);border-color:var(--lime-500);color:var(--ink-950);}
+.reviews-empty{color:var(--ink-faint);font-size:.96rem;text-align:center;padding:40px 0;}
+
+@media (max-width:560px){
+  .review-card-header{flex-direction:column;}
+}
+
 /* ============ SCROLL REVEAL ============ */
 .reveal{opacity:0;transform:translateY(26px);transition:opacity .8s var(--ease), transform .8s var(--ease);}
 .reveal.is-visible{opacity:1;transform:translateY(0);}

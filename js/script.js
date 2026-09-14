@@ -439,6 +439,157 @@
     return lines.join("\n");
   }
 
+  /* ---------- Reviews ---------- */
+  var REVIEWS_KEY = "gfwa_reviews";
+  var reviewSort = "latest";
+
+  function loadReviews() {
+    try { return JSON.parse(localStorage.getItem(REVIEWS_KEY)) || []; }
+    catch (e) { return []; }
+  }
+  function saveReviews(arr) {
+    try { localStorage.setItem(REVIEWS_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+
+  function formatReviewDate(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }
+
+  function starsHtml(count) {
+    var html = '<span class="review-stars" aria-label="' + count + ' out of 5 stars">';
+    for (var i = 1; i <= 5; i++) {
+      html += '<svg class="icon' + (i <= count ? '' : ' empty') + '" aria-hidden="true"><use href="#i-star"/></svg>';
+    }
+    return html + '</span>';
+  }
+
+  function renderReviews() {
+    var reviewsList = qs("#reviews-list");
+    var reviewsControls = qs("#reviews-controls");
+    var reviewsCount = qs("#reviews-count");
+    if (!reviewsList) return;
+
+    var reviews = loadReviews();
+    var sorted = reviews.slice();
+
+    if (reviewSort === "top") {
+      sorted.sort(function (a, b) { return (b.helpful || 0) - (a.helpful || 0); });
+    } else {
+      sorted.sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+    }
+
+    if (reviewsControls) reviewsControls.hidden = reviews.length === 0;
+    if (reviewsCount) reviewsCount.textContent = reviews.length + (reviews.length === 1 ? " review" : " reviews");
+
+    if (!sorted.length) {
+      reviewsList.innerHTML = '<p class="reviews-empty">No reviews yet. Be the first to share your experience!</p>';
+      return;
+    }
+
+    reviewsList.innerHTML = sorted.map(function (r) {
+      var authorHtml = r.social
+        ? '<a href="' + escapeHtml(r.social) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(r.name) + '</a>'
+        : escapeHtml(r.name);
+      return (
+        '<article class="review-card" data-id="' + escapeHtml(r.id) + '">' +
+          '<div class="review-card-header">' +
+            '<span class="review-author">' + authorHtml + '</span>' +
+            '<div class="review-meta">' +
+              starsHtml(r.stars || 5) +
+              '<span class="review-date">' + formatReviewDate(r.date) + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<p class="review-body">' + escapeHtml(r.message) + '</p>' +
+          '<div class="review-helpful">' +
+            '<button class="helpful-btn' + (r.voted ? ' is-voted' : '') + '" data-id="' + escapeHtml(r.id) + '" aria-label="Mark as helpful">' +
+              '&#128077; Helpful (' + (r.helpful || 0) + ')' +
+            '</button>' +
+          '</div>' +
+        '</article>'
+      );
+    }).join("");
+
+    qsa(".helpful-btn", reviewsList).forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-id");
+        var reviews = loadReviews();
+        var rev = reviews.find(function (r) { return r.id === id; });
+        if (!rev || rev.voted) return;
+        rev.helpful = (rev.helpful || 0) + 1;
+        rev.voted = true;
+        saveReviews(reviews);
+        renderReviews();
+      });
+    });
+  }
+
+  var reviewForm = qs("#review-form");
+  if (reviewForm) {
+    reviewForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var nameEl = qs("#rv-name");
+      var socialEl = qs("#rv-social");
+      var messageEl = qs("#rv-message");
+      var nameErr = qs("#rv-err-name");
+      var msgErr = qs("#rv-err-message");
+      var valid = true;
+
+      var nameField = nameEl ? nameEl.closest(".field") : null;
+      var msgField = messageEl ? messageEl.closest(".field") : null;
+
+      if (!nameEl || !nameEl.value.trim()) {
+        if (nameErr) nameErr.textContent = "Please enter your full name.";
+        if (nameField) nameField.classList.add("has-error");
+        valid = false;
+      } else {
+        if (nameErr) nameErr.textContent = "";
+        if (nameField) nameField.classList.remove("has-error");
+      }
+
+      if (!messageEl || !messageEl.value.trim()) {
+        if (msgErr) msgErr.textContent = "Please write your review.";
+        if (msgField) msgField.classList.add("has-error");
+        valid = false;
+      } else {
+        if (msgErr) msgErr.textContent = "";
+        if (msgField) msgField.classList.remove("has-error");
+      }
+
+      if (!valid) return;
+
+      var reviews = loadReviews();
+      reviews.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        name: nameEl.value.trim(),
+        social: socialEl && socialEl.value.trim() ? socialEl.value.trim() : "",
+        message: messageEl.value.trim(),
+        date: new Date().toISOString(),
+        stars: 5,
+        helpful: 0,
+        voted: false
+      });
+      saveReviews(reviews);
+      reviewForm.reset();
+      reviewSort = "latest";
+      qsa(".sort-btn").forEach(function (b) { b.classList.toggle("is-active", b.getAttribute("data-sort") === "latest"); });
+      renderReviews();
+      var list = qs("#reviews-list");
+      if (list) list.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
+
+  qsa(".sort-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      reviewSort = btn.getAttribute("data-sort");
+      qsa(".sort-btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
+      renderReviews();
+    });
+  });
+
+  renderReviews();
+
   /* ---------- Gallery lightbox ---------- */
   var lightboxBackdrop = qs("#lightbox-backdrop");
   var lightboxImg = qs("#lightbox-img");
