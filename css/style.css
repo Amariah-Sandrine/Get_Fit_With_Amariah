@@ -513,6 +513,15 @@ p{margin:0 0 1em;color:var(--ink-soft);line-height:1.7;}
   margin-bottom:28px;
 }
 .reviews-count{font-size:.88rem;color:rgba(255,255,255,.65);font-weight:600;}
+.reviews-sort{display:flex;gap:8px;}
+.sort-btn{
+  background:none;border:1px solid var(--line-dark);border-radius:999px;
+  padding:6px 14px;font-size:.78rem;font-weight:600;color:rgba(255,255,255,.6);
+  cursor:pointer;font-family:var(--font-head);text-transform:uppercase;letter-spacing:.02em;
+  transition:border-color .25s,color .25s,background .25s;
+}
+.sort-btn:hover{border-color:var(--lime-500);color:#fff;}
+.sort-btn.is-active{background:var(--lime-400);border-color:var(--lime-400);color:var(--ink-950);}
 .reviews-list{display:flex;flex-direction:column;gap:20px;}
 .review-card{
   background:rgba(255,255,255,.04);border:1px solid var(--line-dark);border-radius:var(--radius-md);

@@ -439,15 +439,47 @@
     return lines.join("\n");
   }
 
-  /* ---------- Reviews ---------- */
-  var REVIEWS_KEY = "gfwa_reviews";
+  /* =========================================================
+     REVIEWS — backed by a Google Sheet via a Google Apps Script
+     Web App (see apps-script/Code.gs for the deployed script).
+     Reviews themselves are no longer stored in localStorage —
+     they live in the Sheet so every visitor, on any device or
+     browser, sees the same list.
 
-  function loadReviews() {
-    try { return JSON.parse(localStorage.getItem(REVIEWS_KEY)) || []; }
+     PASTE YOUR DEPLOYED APPS SCRIPT WEB APP URL BELOW. Until a
+     real URL is set, the section shows a friendly placeholder
+     instead of a broken fetch.
+     ========================================================= */
+  var REVIEWS_API_URL = "https://script.google.com/macros/s/AKfycbw-p9cxqQkvO27K-oVE2DGLisCbueVj8sSBf5DtSTAj69mN3rXCWDFuFEBxbphacDsyQQ/exec";
+
+  // The only thing still kept in localStorage is a per-browser list of
+  // review IDs this visitor has already marked "Helpful" — this is just a
+  // UI nicety to stop repeat clicks on the same device; it holds no review
+  // content, and the real helpful count always lives in the Sheet.
+  var VOTED_KEY = "gfwa_reviews_voted";
+  function loadVoted() {
+    try { return JSON.parse(localStorage.getItem(VOTED_KEY)) || []; }
     catch (e) { return []; }
   }
-  function saveReviews(arr) {
-    try { localStorage.setItem(REVIEWS_KEY, JSON.stringify(arr)); } catch (e) {}
+  function saveVoted(ids) {
+    try { localStorage.setItem(VOTED_KEY, JSON.stringify(ids)); } catch (e) {}
+  }
+
+  // Only ever render a social link if it's a genuine http/https URL —
+  // reviews are now public, shared, server-stored content, so a submitted
+  // value is untrusted input and must never be dropped into href as-is.
+  function safeSocialHref(url) {
+    if (!url) return "";
+    var trimmed = String(url).trim();
+    if (!trimmed) return "";
+    if (!/^https?:\/\//i.test(trimmed)) trimmed = "https://" + trimmed;
+    try {
+      var parsed = new URL(trimmed);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+      return parsed.href;
+    } catch (e) {
+      return "";
+    }
   }
 
   function formatReviewDate(iso) {
@@ -464,17 +496,35 @@
     return html + '</span>';
   }
 
+  // In-memory cache of whatever the Sheet last returned, plus the
+  // visitor's chosen sort order — re-rendered locally without refetching.
+  var reviewsCache = [];
+  var reviewsSort = "latest"; // "latest" | "top"
+
+  function sortReviews(list) {
+    var copy = list.slice();
+    if (reviewsSort === "top") {
+      copy.sort(function (a, b) {
+        var diff = (b.helpful || 0) - (a.helpful || 0);
+        return diff !== 0 ? diff : new Date(b.date) - new Date(a.date);
+      });
+    } else {
+      copy.sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+    }
+    return copy;
+  }
+
   function renderReviews() {
     var reviewsList = qs("#reviews-list");
     var reviewsControls = qs("#reviews-controls");
     var reviewsCount = qs("#reviews-count");
     if (!reviewsList) return;
 
-    var reviews = loadReviews();
-    var sorted = reviews.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+    var sorted = sortReviews(reviewsCache);
+    var voted = loadVoted();
 
-    if (reviewsControls) reviewsControls.hidden = reviews.length === 0;
-    if (reviewsCount) reviewsCount.textContent = reviews.length + (reviews.length === 1 ? " review" : " reviews");
+    if (reviewsControls) reviewsControls.hidden = reviewsCache.length === 0;
+    if (reviewsCount) reviewsCount.textContent = reviewsCache.length + (reviewsCache.length === 1 ? " review" : " reviews");
 
     if (!sorted.length) {
       reviewsList.innerHTML = '<p class="reviews-empty">No reviews yet. Be the first to share your experience!</p>';
@@ -482,9 +532,11 @@
     }
 
     reviewsList.innerHTML = sorted.map(function (r) {
-      var authorHtml = r.social
-        ? '<a href="' + escapeHtml(r.social) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(r.name) + '</a>'
+      var href = safeSocialHref(r.social);
+      var authorHtml = href
+        ? '<a href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(r.name) + '</a>'
         : escapeHtml(r.name);
+      var hasVoted = voted.indexOf(r.id) !== -1;
       return (
         '<article class="review-card" data-id="' + escapeHtml(r.id) + '">' +
           '<div class="review-card-header">' +
@@ -496,7 +548,7 @@
           '</div>' +
           '<p class="review-body">' + escapeHtml(r.message) + '</p>' +
           '<div class="review-helpful">' +
-            '<button class="helpful-btn' + (r.voted ? ' is-voted' : '') + '" data-id="' + escapeHtml(r.id) + '" aria-label="Mark as helpful">' +
+            '<button class="helpful-btn' + (hasVoted ? ' is-voted' : '') + '" data-id="' + escapeHtml(r.id) + '" aria-label="Mark as helpful">' +
               '&#128077; Helpful (' + (r.helpful || 0) + ')' +
             '</button>' +
           '</div>' +
@@ -507,15 +559,71 @@
     qsa(".helpful-btn", reviewsList).forEach(function (btn) {
       btn.addEventListener("click", function () {
         var id = btn.getAttribute("data-id");
-        var reviews = loadReviews();
-        var rev = reviews.find(function (r) { return r.id === id; });
-        if (!rev || rev.voted) return;
-        rev.helpful = (rev.helpful || 0) + 1;
-        rev.voted = true;
-        saveReviews(reviews);
+        var voted = loadVoted();
+        if (voted.indexOf(id) !== -1) return;
+
+        // Optimistic UI update so it feels instant...
+        var rev = reviewsCache.find(function (r) { return r.id === id; });
+        if (rev) rev.helpful = (rev.helpful || 0) + 1;
+        voted.push(id);
+        saveVoted(voted);
         renderReviews();
+
+        // ...then persist the vote to the Sheet in the background.
+        postToReviewsApi({ action: "helpful", id: id }).catch(function () {
+          // If this fails silently, the count simply resyncs on next load.
+        });
       });
     });
+  }
+
+  qsa(".sort-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      reviewsSort = btn.getAttribute("data-sort") === "top" ? "top" : "latest";
+      qsa(".sort-btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
+      renderReviews();
+    });
+  });
+
+  function reviewsApiConfigured() {
+    return Boolean(REVIEWS_API_URL) && REVIEWS_API_URL.indexOf("PASTE_") !== 0;
+  }
+
+  // Sends a POST to the Apps Script Web App. Deliberately left without a
+  // Content-Type header — with a plain string body, fetch defaults to
+  // "text/plain", which keeps this a CORS "simple request" (no preflight),
+  // matching how the Apps Script doPost below reads e.postData.contents.
+  function postToReviewsApi(payload) {
+    if (!reviewsApiConfigured()) return Promise.reject(new Error("Reviews API not configured."));
+    return fetch(REVIEWS_API_URL, { method: "POST", body: JSON.stringify(payload) })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data || data.success === false) throw new Error((data && data.error) || "Request failed.");
+        return data;
+      });
+  }
+
+  function fetchReviews() {
+    var reviewsList = qs("#reviews-list");
+    if (!reviewsList) return;
+
+    if (!reviewsApiConfigured()) {
+      reviewsList.innerHTML = '<p class="reviews-empty">Reviews aren&rsquo;t connected yet.</p>';
+      return;
+    }
+
+    reviewsList.innerHTML = '<p class="reviews-empty">Loading reviews&hellip;</p>';
+
+    fetch(REVIEWS_API_URL + "?action=list")
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data || data.success === false) throw new Error((data && data.error) || "Request failed.");
+        reviewsCache = Array.isArray(data.reviews) ? data.reviews : [];
+        renderReviews();
+      })
+      .catch(function () {
+        reviewsList.innerHTML = '<p class="reviews-empty">Couldn&rsquo;t load reviews right now. Please try again later.</p>';
+      });
   }
 
   var reviewForm = qs("#review-form");
@@ -527,6 +635,7 @@
       var messageEl = qs("#rv-message");
       var nameErr = qs("#rv-err-name");
       var msgErr = qs("#rv-err-message");
+      var submitBtn = reviewForm.querySelector('button[type="submit"]');
       var valid = true;
 
       var nameField = nameEl ? nameEl.closest(".field") : null;
@@ -552,26 +661,35 @@
 
       if (!valid) return;
 
-      var reviews = loadReviews();
-      reviews.push({
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      var payload = {
+        action: "add",
         name: nameEl.value.trim(),
         social: socialEl && socialEl.value.trim() ? socialEl.value.trim() : "",
         message: messageEl.value.trim(),
-        date: new Date().toISOString(),
         stars: 5,
-        helpful: 0,
-        voted: false
-      });
-      saveReviews(reviews);
-      reviewForm.reset();
-      renderReviews();
-      var list = qs("#reviews-list");
-      if (list) list.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        // Visitor's current device date/time, sent as-is to be stored in the Sheet.
+        date: new Date().toISOString()
+      };
+
+      if (submitBtn) submitBtn.disabled = true;
+
+      postToReviewsApi(payload)
+        .then(function () {
+          reviewForm.reset();
+          fetchReviews();
+          var list = qs("#reviews-list");
+          if (list) list.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        })
+        .catch(function () {
+          if (msgErr) msgErr.textContent = "Something went wrong submitting your review. Please try again.";
+        })
+        .finally(function () {
+          if (submitBtn) submitBtn.disabled = false;
+        });
     });
   }
 
-  renderReviews();
+  fetchReviews();
 
   /* ---------- Gallery lightbox ---------- */
   var lightboxBackdrop = qs("#lightbox-backdrop");
