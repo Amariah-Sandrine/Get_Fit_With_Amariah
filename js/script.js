@@ -496,28 +496,25 @@
     return html + '</span>';
   }
 
-  // In-memory cache of whatever the Sheet last returned, plus the
-  // visitor's chosen sort order — re-rendered locally without refetching.
+  // In-memory cache of whatever the Sheet last returned, re-rendered
+  // locally (sorted + paginated) without refetching.
   var reviewsCache = [];
-  var reviewsSort = "latest"; // "latest" | "top"
+  var reviewsPage = 0; // 0-based; page 0 = newest reviews
+  var REVIEWS_PER_PAGE = 10;
 
+  // Always newest-first — the site no longer exposes a sort toggle.
   function sortReviews(list) {
-    var copy = list.slice();
-    if (reviewsSort === "top") {
-      copy.sort(function (a, b) {
-        var diff = (b.helpful || 0) - (a.helpful || 0);
-        return diff !== 0 ? diff : new Date(b.date) - new Date(a.date);
-      });
-    } else {
-      copy.sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
-    }
-    return copy;
+    return list.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
   }
 
   function renderReviews() {
     var reviewsList = qs("#reviews-list");
     var reviewsControls = qs("#reviews-controls");
     var reviewsCount = qs("#reviews-count");
+    var pagination = qs("#reviews-pagination");
+    var pageStatus = qs("#reviews-page-status");
+    var prevBtn = qs("#reviews-prev");
+    var nextBtn = qs("#reviews-next");
     if (!reviewsList) return;
 
     var sorted = sortReviews(reviewsCache);
@@ -528,10 +525,23 @@
 
     if (!sorted.length) {
       reviewsList.innerHTML = '<p class="reviews-empty">No reviews yet. Be the first to share your experience!</p>';
+      if (pagination) pagination.hidden = true;
       return;
     }
 
-    reviewsList.innerHTML = sorted.map(function (r) {
+    var totalPages = Math.max(1, Math.ceil(sorted.length / REVIEWS_PER_PAGE));
+    if (reviewsPage >= totalPages) reviewsPage = totalPages - 1;
+    if (reviewsPage < 0) reviewsPage = 0;
+
+    var start = reviewsPage * REVIEWS_PER_PAGE;
+    var pageItems = sorted.slice(start, start + REVIEWS_PER_PAGE);
+
+    if (pagination) pagination.hidden = sorted.length <= REVIEWS_PER_PAGE;
+    if (pageStatus) pageStatus.textContent = "Page " + (reviewsPage + 1) + " of " + totalPages;
+    if (prevBtn) prevBtn.disabled = reviewsPage === 0;
+    if (nextBtn) nextBtn.disabled = reviewsPage >= totalPages - 1;
+
+    reviewsList.innerHTML = pageItems.map(function (r) {
       var href = safeSocialHref(r.social);
       var authorHtml = href
         ? '<a href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(r.name) + '</a>'
@@ -577,13 +587,24 @@
     });
   }
 
-  qsa(".sort-btn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      reviewsSort = btn.getAttribute("data-sort") === "top" ? "top" : "latest";
-      qsa(".sort-btn").forEach(function (b) { b.classList.toggle("is-active", b === btn); });
+  var reviewsPrevBtn = qs("#reviews-prev");
+  var reviewsNextBtn = qs("#reviews-next");
+  if (reviewsPrevBtn) {
+    reviewsPrevBtn.addEventListener("click", function () {
+      reviewsPage -= 1;
       renderReviews();
+      var list = qs("#reviews-list");
+      if (list) list.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
-  });
+  }
+  if (reviewsNextBtn) {
+    reviewsNextBtn.addEventListener("click", function () {
+      reviewsPage += 1;
+      renderReviews();
+      var list = qs("#reviews-list");
+      if (list) list.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
 
   function reviewsApiConfigured() {
     return Boolean(REVIEWS_API_URL) && REVIEWS_API_URL.indexOf("PASTE_") !== 0;
@@ -619,6 +640,7 @@
       .then(function (data) {
         if (!data || data.success === false) throw new Error((data && data.error) || "Request failed.");
         reviewsCache = Array.isArray(data.reviews) ? data.reviews : [];
+        reviewsPage = 0; // jump back to the newest page whenever the list is (re)loaded
         renderReviews();
       })
       .catch(function () {

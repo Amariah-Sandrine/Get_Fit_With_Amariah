@@ -225,13 +225,13 @@
       <p class="lead lead-dark reveal">A look at real sessions — strength work, coaching and movement in progress.</p>
 
       <div class="gallery-grid">
-        <figure class="gallery-item reveal" data-full="media/pic1.jpeg" tabindex="0" role="button" aria-label="Open larger image: Strength training">
+        <!-- <figure class="gallery-item reveal" data-full="media/pic1.jpeg" tabindex="0" role="button" aria-label="Open larger image: Strength training">
           <img src="media/pic1.jpeg" alt="Amariah performing a strength-training pull exercise in the gym" loading="lazy" width="540" height="790">
           <figcaption>
             <h3 class="caption-black">Strength Training</h3>
             <p class="caption-black">Focused strength work, one rep at a time.</p>
           </figcaption>
-        </figure>
+        </figure> -->
 
         <figure class="gallery-item reveal" data-full="media/pic2.jpeg" tabindex="0" role="button" aria-label="Open larger image: Guided coaching">
           <img src="media/pic2.jpeg" alt="Guided coaching session on a Pilates reformer" loading="lazy" width="540" height="785">
@@ -268,8 +268,8 @@
         <figure class="gallery-item reveal" data-full="media/pic6.jpeg" tabindex="0" role="button" aria-label="Open larger image: Lower body strength">
           <img src="media/pic6.jpeg" alt="Split squat exercise on a bench inside the gym" loading="lazy" width="960" height="1280">
           <figcaption>
-            <h3>Lower Body Strength</h3>
-            <p>Split squats and bench work built for real power.</p>
+            <h3>Train Strong. Smile Brighter</h3>
+            <p>Strong body, beautiful energy, unstoppable smile:)</p>
           </figcaption>
         </figure>
 
@@ -412,9 +412,6 @@
       <p class="lead reveal">Trained with Amariah? Share your experience — it helps others take the first step.</p>
 
       <form class="booking-form review-form reveal" id="review-form" novalidate>
-        <p class="form-banner form-banner-warning" role="status">
-          &#9888; Reviews are temporarily unavailable while we upgrade this feature. Please check back soon!
-        </p>
         <div class="form-row">
           <div class="field">
             <label for="rv-name">Full Name *</label>
@@ -431,18 +428,20 @@
           <textarea id="rv-message" name="rv-message" rows="4" required placeholder="Tell others about your experience training with Amariah…" aria-describedby="rv-err-message"></textarea>
           <span class="field-error" id="rv-err-message" role="alert"></span>
         </div>
-        <button type="submit" class="btn btn-accent btn-block" disabled title="Reviews are temporarily unavailable.">Post Review</button>
+        <button type="submit" class="btn btn-accent btn-block">Post Review</button>
       </form>
 
       <div class="reviews-controls reveal" id="reviews-controls" hidden>
         <span class="reviews-count" id="reviews-count"></span>
-        <div class="reviews-sort" role="group" aria-label="Sort reviews">
-          <button type="button" class="sort-btn is-active" id="sort-latest" data-sort="latest">Latest</button>
-          <button type="button" class="sort-btn" id="sort-top" data-sort="top">Top Reviews</button>
-        </div>
       </div>
 
       <div class="reviews-list" id="reviews-list" aria-live="polite"></div>
+
+      <div class="reviews-pagination" id="reviews-pagination" hidden>
+        <button type="button" class="btn btn-outline-light btn-sm" id="reviews-prev">&larr; Previous</button>
+        <span class="reviews-page-status" id="reviews-page-status"></span>
+        <button type="button" class="btn btn-outline-light btn-sm" id="reviews-next">Next &rarr;</button>
+      </div>
     </div>
   </section>
 
