@@ -440,17 +440,24 @@
   }
 
   /* =========================================================
-     REVIEWS — backed by a Google Sheet via a Google Apps Script
-     Web App (see apps-script/Code.gs for the deployed script).
-     Reviews themselves are no longer stored in localStorage —
-     they live in the Sheet so every visitor, on any device or
-     browser, sees the same list.
+     REVIEWS — backed by Supabase (Postgres + a REST API), via the
+     supabase-js client loaded from a CDN in index.html. Reviews are
+     no longer stored in localStorage — they live in the "reviews"
+     table so every visitor, on any device or browser, sees the same
+     list. See the chat message for the full Supabase setup steps.
 
-     PASTE YOUR DEPLOYED APPS SCRIPT WEB APP URL BELOW. Until a
-     real URL is set, the section shows a friendly placeholder
-     instead of a broken fetch.
+     PASTE YOUR PROJECT URL AND ANON PUBLIC KEY BELOW (Supabase
+     dashboard -> Settings -> API). The anon key is meant to be
+     public/client-side — it's restricted entirely by the table's
+     Row Level Security policies, not by keeping it secret.
      ========================================================= */
-  var REVIEWS_API_URL = "https://script.google.com/macros/s/AKfycbw-p9cxqQkvO27K-oVE2DGLisCbueVj8sSBf5DtSTAj69mN3rXCWDFuFEBxbphacDsyQQ/exec";
+  var SUPABASE_URL = "https://odqcfzuvqjrvldbhhtfc.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_jeYpJJM2AKhhIAelLLBbSw_eJxM81vJ";
+
+  var supabaseClient = null;
+  if (window.supabase && SUPABASE_URL.indexOf("PASTE_") !== 0 && SUPABASE_ANON_KEY.indexOf("PASTE_") !== 0) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
 
   // The only thing still kept in localStorage is a per-browser list of
   // review IDs this visitor has already marked "Helpful" — this is just a
@@ -579,8 +586,8 @@
         saveVoted(voted);
         renderReviews();
 
-        // ...then persist the vote to the Sheet in the background.
-        postToReviewsApi({ action: "helpful", id: id }).catch(function () {
+        // ...then persist the vote to Supabase in the background.
+        markHelpfulRemote(id).catch(function () {
           // If this fails silently, the count simply resyncs on next load.
         });
       });
@@ -606,92 +613,81 @@
     });
   }
 
-  function reviewsApiConfigured() {
-    return Boolean(REVIEWS_API_URL) && REVIEWS_API_URL.indexOf("PASTE_") !== 0;
-  }
-
-  // ---- JSONP transport -----------------------------------------------
-  // A plain fetch() to an Apps Script /exec URL has to follow a
-  // cross-origin redirect (script.google.com -> script.googleusercontent.com)
-  // before the browser will hand back a response, and that final hop's
-  // CORS headers are well known to be inconsistent — this is the actual
-  // cause of Apps Script Web Apps intermittently failing from fetch()
-  // ("works sometimes, fails most of the time") even though the endpoint
-  // itself is working fine. A <script>-tag JSONP request is immune to
-  // CORS entirely, so it's used here for both reads and writes instead.
-  var jsonpCounter = 0;
-
-  function jsonpRequest(params) {
-    return new Promise(function (resolve, reject) {
-      if (!reviewsApiConfigured()) { reject(new Error("Reviews API not configured.")); return; }
-
-      var callbackName = "gfwaReviewsCb" + (jsonpCounter++) + "_" + Date.now();
-      var script = document.createElement("script");
-      var timeoutId;
-
-      function cleanup() {
-        clearTimeout(timeoutId);
-        delete window[callbackName];
-        if (script.parentNode) script.parentNode.removeChild(script);
-      }
-
-      window[callbackName] = function (data) {
-        cleanup();
-        if (!data || data.success === false) {
-          console.error("Reviews API returned an error:", data && data.error);
-          reject(new Error((data && data.error) || "Request failed."));
-          return;
+  // Adds a new review row. payload: { name, social, message, stars, date }
+  function addReviewRemote(payload) {
+    if (!supabaseClient) return Promise.reject(new Error("Reviews API not configured."));
+    return supabaseClient
+      .from("reviews")
+      .insert([{
+        name: payload.name,
+        social: payload.social || null,
+        message: payload.message,
+        stars: payload.stars || 5,
+        // Visitor's own device date/time, stored as-is instead of the DB default.
+        created_at: payload.date
+      }])
+      .select()
+      .then(function (res) {
+        if (res.error) {
+          console.error("Supabase insert failed:", res.error);
+          throw new Error(res.error.message || "Request failed.");
         }
-        resolve(data);
-      };
-
-      script.onerror = function () {
-        cleanup();
-        console.error("Reviews API request failed to load (network error).");
-        reject(new Error("Could not reach the reviews service."));
-      };
-
-      timeoutId = setTimeout(function () {
-        cleanup();
-        console.error("Reviews API request timed out.");
-        reject(new Error("The reviews service took too long to respond."));
-      }, 15000);
-
-      var query = Object.keys(params).map(function (key) {
-        return encodeURIComponent(key) + "=" + encodeURIComponent(params[key]);
-      }).join("&");
-
-      script.src = REVIEWS_API_URL + "?" + query + "&callback=" + callbackName;
-      document.head.appendChild(script);
-    });
+        return res.data && res.data[0];
+      });
   }
 
-  // Sends a review action ("add" a review, or mark one "helpful") to the
-  // Apps Script Web App. `payload` must include an `action` field plus
-  // whatever fields that action needs — see apps-script/Code.gs.
-  function postToReviewsApi(payload) {
-    return jsonpRequest(payload);
+  // Increments a review's helpful count via the increment_helpful() RPC
+  // function (see the SQL setup) rather than a direct table UPDATE, so
+  // visitors never need table-level write access beyond inserting reviews.
+  function markHelpfulRemote(id) {
+    if (!supabaseClient) return Promise.reject(new Error("Reviews API not configured."));
+    return supabaseClient
+      .rpc("increment_helpful", { row_id: id })
+      .then(function (res) {
+        if (res.error) {
+          console.error("Supabase increment_helpful failed:", res.error);
+          throw new Error(res.error.message || "Request failed.");
+        }
+        return res.data;
+      });
   }
 
   function fetchReviews() {
     var reviewsList = qs("#reviews-list");
     if (!reviewsList) return;
 
-    if (!reviewsApiConfigured()) {
+    if (!supabaseClient) {
       reviewsList.innerHTML = '<p class="reviews-empty">Reviews aren&rsquo;t connected yet.</p>';
       return;
     }
 
     reviewsList.innerHTML = '<p class="reviews-empty">Loading reviews&hellip;</p>';
 
-    jsonpRequest({ action: "list" })
-      .then(function (data) {
-        reviewsCache = Array.isArray(data.reviews) ? data.reviews : [];
+    supabaseClient
+      .from("reviews")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .then(function (res) {
+        if (res.error) {
+          console.error("Supabase reviews fetch failed:", res.error);
+          throw new Error(res.error.message || "Request failed.");
+        }
+        reviewsCache = (res.data || []).map(function (row) {
+          return {
+            id: row.id,
+            name: row.name,
+            social: row.social || "",
+            message: row.message,
+            stars: row.stars,
+            helpful: row.helpful,
+            date: row.created_at
+          };
+        });
         reviewsPage = 0; // jump back to the newest page whenever the list is (re)loaded
         renderReviews();
       })
       .catch(function (err) {
-        console.error("Reviews API GET failed:", err);
+        console.error("Reviews fetch failed:", err);
         reviewsList.innerHTML = '<p class="reviews-empty">Couldn&rsquo;t load reviews right now. Please try again later.</p>';
       });
   }
@@ -732,18 +728,17 @@
       if (!valid) return;
 
       var payload = {
-        action: "add",
         name: nameEl.value.trim(),
         social: socialEl && socialEl.value.trim() ? socialEl.value.trim() : "",
         message: messageEl.value.trim(),
         stars: 5,
-        // Visitor's current device date/time, sent as-is to be stored in the Sheet.
+        // Visitor's current device date/time, sent as-is to be stored in the database.
         date: new Date().toISOString()
       };
 
       if (submitBtn) submitBtn.disabled = true;
 
-      postToReviewsApi(payload)
+      addReviewRemote(payload)
         .then(function () {
           reviewForm.reset();
           fetchReviews();
