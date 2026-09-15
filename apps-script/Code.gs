@@ -14,6 +14,22 @@
  *   New deployment > type "Web app" > Execute as "Me" > Who has
  *   access "Anyone" > Deploy > copy the /exec URL into script.js's
  *   REVIEWS_API_URL.
+ *
+ * Remember: editing this file alone does NOT update the live /exec
+ * URL. After any change here, go to Deploy > Manage deployments >
+ * (pencil/edit icon) > Version: New version > Deploy.
+ *
+ * TRANSPORT — everything (list / add / helpful) goes through doGet
+ * as plain query-string requests, with an optional ?callback=NAME
+ * for JSONP (the site's frontend always sends one). This is
+ * deliberate: a real browser's fetch() has to follow a cross-origin
+ * redirect (script.google.com -> script.googleusercontent.com) to
+ * read an Apps Script response, and that hop's CORS headers are
+ * notoriously inconsistent — the classic cause of Apps Script Web
+ * Apps "working sometimes, failing most of the time" from fetch().
+ * A <script>-tag JSONP request sidesteps CORS entirely, which is why
+ * writes happen over GET here instead of doPost. doPost is kept
+ * below anyway as a plain-JSON fallback for any other client.
  * ---------------------------------------------------------------
  */
 
@@ -42,24 +58,80 @@ function headerIndex_(headers) {
   };
 }
 
-function jsonOutput_(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
+/**
+ * GET — handles every action: ?action=list | add | helpful
+ * Add a &callback=NAME param for a JSONP response; otherwise plain JSON.
+ */
+function doGet(e) {
+  var params = (e && e.parameter) || {};
+  var action = params.action || "list";
+  var result;
+
+  if (action === "list") {
+    result = listReviews_();
+  } else if (action === "add") {
+    result = addReview_(params);
+  } else if (action === "helpful") {
+    result = markHelpful_(params.id);
+  } else {
+    result = { success: false, error: "Unknown action: " + action };
+  }
+
+  return respond_(result, params.callback);
 }
 
 /**
- * GET — list all reviews.
- * https://YOUR_DEPLOYMENT_URL/exec?action=list
+ * POST fallback — plain JSON body, same actions as doGet:
+ *   { "action": "add", "name": "...", "social": "...", "message": "...", "stars": 5, "date": "ISO string" }
+ *   { "action": "helpful", "id": "..." }
+ * Not used by the site's own frontend (which uses JSONP via doGet for
+ * CORS reliability), but kept available for any other client.
  */
-function doGet(e) {
+function doPost(e) {
+  if (!e || !e.postData || !e.postData.contents) {
+    return respond_({ success: false, error: "Missing request body." });
+  }
+
+  var body;
+  try {
+    body = JSON.parse(e.postData.contents);
+  } catch (parseErr) {
+    return respond_({ success: false, error: "Malformed request body." });
+  }
+
+  var action = body.action || "add";
+  var result;
+  if (action === "add") result = addReview_(body);
+  else if (action === "helpful") result = markHelpful_(body.id);
+  else result = { success: false, error: "Unknown action: " + action };
+
+  return respond_(result);
+}
+
+function respond_(obj, callbackName) {
+  var json = JSON.stringify(obj);
+  if (callbackName) {
+    // JSONP: a <script>-tag response, exempt from CORS.
+    return ContentService
+      .createTextOutput(callbackName + "(" + json + ")")
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService
+    .createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function listReviews_() {
   try {
     var sheet = getSheet_();
     var range = sheet.getDataRange().getValues();
-    if (range.length < 2) return jsonOutput_({ success: true, reviews: [] });
+    if (range.length < 2) return { success: true, reviews: [] };
 
     var headers = range[0];
     var idx = headerIndex_(headers);
+    if (idx.id === undefined) {
+      return { success: false, error: "Sheet is missing an 'ID' header in row 1." };
+    }
     var rows = range.slice(1);
 
     var reviews = rows
@@ -81,65 +153,96 @@ function doGet(e) {
         };
       });
 
-    return jsonOutput_({ success: true, reviews: reviews });
+    return { success: true, reviews: reviews };
   } catch (err) {
-    return jsonOutput_({ success: false, error: String(err) });
+    return { success: false, error: String(err) };
   }
 }
 
-/**
- * POST — add a review, or mark one helpful.
- * Body is JSON:
- *   { "action": "add", "name": "...", "social": "...", "message": "...", "stars": 5, "date": "ISO string" }
- *   { "action": "helpful", "id": "..." }
- */
-function doPost(e) {
+function addReview_(params) {
+  // A script lock keeps two near-simultaneous submissions (e.g. a new
+  // review and a "Helpful" click landing in the same second) from
+  // reading/writing the sheet at the same time and clobbering each other.
+  var lock = LockService.getScriptLock();
   try {
-    if (!e || !e.postData || !e.postData.contents) {
-      return jsonOutput_({ success: false, error: "Missing request body." });
+    lock.waitLock(10000);
+  } catch (lockErr) {
+    return { success: false, error: "Server is busy, please try again." };
+  }
+
+  try {
+    var name = String(params.name || "").trim();
+    var message = String(params.message || "").trim();
+    if (!name || !message) {
+      return { success: false, error: "Name and review message are required." };
     }
-    var body = JSON.parse(e.postData.contents);
-    var action = body.action || "add";
+
     var sheet = getSheet_();
-
-    if (action === "add") {
-      var name = String(body.name || "").trim();
-      var message = String(body.message || "").trim();
-      if (!name || !message) {
-        return jsonOutput_({ success: false, error: "Name and review message are required." });
-      }
-
-      var social = String(body.social || "").trim();
-      var stars = Number(body.stars) || 5;
-      // Use the visitor's device date/time if provided, else fall back to server time.
-      var timestamp = body.date ? new Date(body.date) : new Date();
-      if (isNaN(timestamp.getTime())) timestamp = new Date();
-      var id = Utilities.getUuid();
-
-      sheet.appendRow([id, name, social, message, stars, 0, timestamp]);
-      return jsonOutput_({ success: true, id: id });
+    var range = sheet.getDataRange().getValues();
+    var headers = range[0] || [];
+    var idx = headerIndex_(headers);
+    if (idx.id === undefined) {
+      return { success: false, error: "Sheet is missing an 'ID' header in row 1." };
     }
 
-    if (action === "helpful") {
-      var targetId = body.id;
-      if (!targetId) return jsonOutput_({ success: false, error: "Missing review id." });
+    var social = String(params.social || "").trim();
+    var stars = Number(params.stars) || 5;
+    // Use the visitor's device date/time if provided, else fall back to server time.
+    var timestamp = params.date ? new Date(params.date) : new Date();
+    if (isNaN(timestamp.getTime())) timestamp = new Date();
+    var id = Utilities.getUuid();
 
-      var range = sheet.getDataRange().getValues();
-      var headers = range[0];
-      var idx = headerIndex_(headers);
+    // Build the new row by header position (not a hardcoded column order)
+    // so it lands correctly even if the sheet's columns aren't laid out
+    // in exactly A–G ID/Name/Social/Message/Stars/Helpful/Timestamp order.
+    var newRow = new Array(headers.length).fill("");
+    newRow[idx.id] = id;
+    newRow[idx.name] = name;
+    newRow[idx.social] = social;
+    newRow[idx.message] = message;
+    newRow[idx.stars] = stars;
+    newRow[idx.helpful] = 0;
+    newRow[idx.timestamp] = timestamp;
 
-      for (var i = 1; i < range.length; i++) {
-        if (String(range[i][idx.id]) === String(targetId)) {
-          var newCount = (Number(range[i][idx.helpful]) || 0) + 1;
-          sheet.getRange(i + 1, idx.helpful + 1).setValue(newCount);
-          return jsonOutput_({ success: true, helpful: newCount });
-        }
-      }
-      return jsonOutput_({ success: false, error: "Review not found." });
-    }
-
-    return jsonOutput_({ success: false, error: "Unknown action: " + action });
+    sheet.appendRow(newRow);
+    return { success: true, id: id };
   } catch (err) {
-    return jsonOutput_({ success: false, error: String(err) });
+    return { success: false, error: String(err) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function markHelpful_(targetId) {
+  if (!targetId) return { success: false, error: "Missing review id." };
+
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (lockErr) {
+    return { success: false, error: "Server is busy, please try again." };
+  }
+
+  try {
+    var sheet = getSheet_();
+    var range = sheet.getDataRange().getValues();
+    var headers = range[0] || [];
+    var idx = headerIndex_(headers);
+    if (idx.id === undefined) {
+      return { success: false, error: "Sheet is missing an 'ID' header in row 1." };
+    }
+
+    for (var i = 1; i < range.length; i++) {
+      if (String(range[i][idx.id]) === String(targetId)) {
+        var newCount = (Number(range[i][idx.helpful]) || 0) + 1;
+        sheet.getRange(i + 1, idx.helpful + 1).setValue(newCount);
+        return { success: true, helpful: newCount };
+      }
+    }
+    return { success: false, error: "Review not found." };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  } finally {
+    lock.releaseLock();
   }
 }

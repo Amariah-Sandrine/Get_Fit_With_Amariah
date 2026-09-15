@@ -610,18 +610,67 @@
     return Boolean(REVIEWS_API_URL) && REVIEWS_API_URL.indexOf("PASTE_") !== 0;
   }
 
-  // Sends a POST to the Apps Script Web App. Deliberately left without a
-  // Content-Type header — with a plain string body, fetch defaults to
-  // "text/plain", which keeps this a CORS "simple request" (no preflight),
-  // matching how the Apps Script doPost below reads e.postData.contents.
+  // ---- JSONP transport -----------------------------------------------
+  // A plain fetch() to an Apps Script /exec URL has to follow a
+  // cross-origin redirect (script.google.com -> script.googleusercontent.com)
+  // before the browser will hand back a response, and that final hop's
+  // CORS headers are well known to be inconsistent — this is the actual
+  // cause of Apps Script Web Apps intermittently failing from fetch()
+  // ("works sometimes, fails most of the time") even though the endpoint
+  // itself is working fine. A <script>-tag JSONP request is immune to
+  // CORS entirely, so it's used here for both reads and writes instead.
+  var jsonpCounter = 0;
+
+  function jsonpRequest(params) {
+    return new Promise(function (resolve, reject) {
+      if (!reviewsApiConfigured()) { reject(new Error("Reviews API not configured.")); return; }
+
+      var callbackName = "gfwaReviewsCb" + (jsonpCounter++) + "_" + Date.now();
+      var script = document.createElement("script");
+      var timeoutId;
+
+      function cleanup() {
+        clearTimeout(timeoutId);
+        delete window[callbackName];
+        if (script.parentNode) script.parentNode.removeChild(script);
+      }
+
+      window[callbackName] = function (data) {
+        cleanup();
+        if (!data || data.success === false) {
+          console.error("Reviews API returned an error:", data && data.error);
+          reject(new Error((data && data.error) || "Request failed."));
+          return;
+        }
+        resolve(data);
+      };
+
+      script.onerror = function () {
+        cleanup();
+        console.error("Reviews API request failed to load (network error).");
+        reject(new Error("Could not reach the reviews service."));
+      };
+
+      timeoutId = setTimeout(function () {
+        cleanup();
+        console.error("Reviews API request timed out.");
+        reject(new Error("The reviews service took too long to respond."));
+      }, 15000);
+
+      var query = Object.keys(params).map(function (key) {
+        return encodeURIComponent(key) + "=" + encodeURIComponent(params[key]);
+      }).join("&");
+
+      script.src = REVIEWS_API_URL + "?" + query + "&callback=" + callbackName;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Sends a review action ("add" a review, or mark one "helpful") to the
+  // Apps Script Web App. `payload` must include an `action` field plus
+  // whatever fields that action needs — see apps-script/Code.gs.
   function postToReviewsApi(payload) {
-    if (!reviewsApiConfigured()) return Promise.reject(new Error("Reviews API not configured."));
-    return fetch(REVIEWS_API_URL, { method: "POST", body: JSON.stringify(payload) })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (!data || data.success === false) throw new Error((data && data.error) || "Request failed.");
-        return data;
-      });
+    return jsonpRequest(payload);
   }
 
   function fetchReviews() {
@@ -635,15 +684,14 @@
 
     reviewsList.innerHTML = '<p class="reviews-empty">Loading reviews&hellip;</p>';
 
-    fetch(REVIEWS_API_URL + "?action=list")
-      .then(function (res) { return res.json(); })
+    jsonpRequest({ action: "list" })
       .then(function (data) {
-        if (!data || data.success === false) throw new Error((data && data.error) || "Request failed.");
         reviewsCache = Array.isArray(data.reviews) ? data.reviews : [];
         reviewsPage = 0; // jump back to the newest page whenever the list is (re)loaded
         renderReviews();
       })
-      .catch(function () {
+      .catch(function (err) {
+        console.error("Reviews API GET failed:", err);
         reviewsList.innerHTML = '<p class="reviews-empty">Couldn&rsquo;t load reviews right now. Please try again later.</p>';
       });
   }
